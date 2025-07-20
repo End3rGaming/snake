@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>SnakeRoyale - Slither.io Style</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            color: white;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        
+        #bettingUI {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 30px;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+            z-index: 2000;
+        }
+        
+        .betButton {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .betButton:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+        
+        #gameOverScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.95);
+            padding: 40px;
+            border-radius: 20px;
+            color: white;
+            text-align: center;
+            z-index: 3000;
+            display: none;
+        }
+        
+        .gameOverButton {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+            border: none;
+            color: white;
+            padding: 12px 25px;
+            margin: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .gameOverButton:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(33, 150, 243, 0.4);
+        }
+        
+        #zoneInfo {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <div>Score: <span id="score">0</span></div>
+            <div>Segments: <span id="size">30</span></div>
+            <div>Food Eaten: <span id="foodEaten">0</span></div>
+            <div>Time: <span id="time">00:00</span></div>
+        </div>
+        
+        <div id="zoneInfo">
+            <div>Zone Radius: <span id="zoneRadius">800</span></div>
+            <div>Players Alive: <span id="playersAlive">1</span></div>
+        </div>
+        
+        <div id="bettingUI">
+            <h2>🎮 SnakeRoyale 🐍</h2>
+            <p>Choose your betting tier to join the battle!</p>
+            <button class="betButton" onclick="startGame(1)">$1 Tier</button>
+            <button class="betButton" onclick="startGame(5)">$5 Tier</button>
+            <button class="betButton" onclick="startGame(10)">$10 Tier</button>
+            <button class="betButton" onclick="startGame(20)">$20 Tier</button>
+            <p style="margin-top: 20px; font-size: 14px; opacity: 0.8;">
+                Top 5 players win real money!<br>
+                Zone shrinks every 30 seconds
+            </p>
+        </div>
+        
+        <div id="gameOverScreen">
+            <h2>🏁 Game Over!</h2>
+            <div id="gameOverStats">
+                <p>Final Score: <span id="finalScore">0</span></p>
+                <p>Food Eaten: <span id="finalFood">0</span></p>
+                <p>Final Segments: <span id="finalSize">30</span></p>
+                <p>Time Survived: <span id="finalTime">00:00</span></p>
+            </div>
+            <button class="gameOverButton" onclick="restartGame()">Play Again</button>
+            <button class="gameOverButton" onclick="showMainMenu()">Main Menu</button>
+        </div>
+    </div>
+
+    <script src="public/lib/phaser.min.js"></script>
+    <script src="public/js/game.js"></script>
+    <script>
+        // Game state
+        let gameInstance = null;
+        let currentBet = 0;
+        let gameStartTime = 0;
+        let gameStats = {
+            score: 0,
+            foodEaten: 0,
+            segments: 30
+        };
+
+        // Game functions
+        function startGame(betAmount) {
+            currentBet = betAmount;
+            document.getElementById('bettingUI').style.display = 'none';
+            
+            if (gameInstance) {
+                gameInstance.destroy(true);
+            }
+
+            const config = {
+                type: Phaser.AUTO,
+                width: window.innerWidth,
+                height: window.innerHeight,
+                parent: 'gameContainer',
+                backgroundColor: '#2c3e50',
+                physics: {
+                    default: 'p2',
+                    p2: {
+                        gravity: { y: 0 },
+                        debug: false
+                    }
+                },
+                scene: Game
+            };
+
+            gameInstance = new Phaser.Game(config);
+            gameStats = { score: 0, foodEaten: 0, segments: 30 };
+            gameStartTime = Date.now();
+
+            // Handle resizing
+            window.addEventListener('resize', () => {
+                if (gameInstance && gameInstance.scale) {
+                    gameInstance.scale.resize(window.innerWidth, window.innerHeight);
+                }
+            });
+        }
+
+        function restartGame() {
+            document.getElementById('gameOverScreen').style.display = 'none';
+            startGame(currentBet);
+        }
+
+        function showMainMenu() {
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('bettingUI').style.display = 'block';
+            if (gameInstance) {
+                gameInstance.destroy(true);
+                gameInstance = null;
+            }
+        }
+
+        // Update UI every second
+        setInterval(() => {
+            if (gameStats) {
+                document.getElementById('score').textContent = gameStats.score;
+                document.getElementById('size').textContent = gameStats.foodEaten + 30;
+                document.getElementById('foodEaten').textContent = gameStats.foodEaten;
+            }
+        }, 1000);
+    </script>
+</body>
+</html> 

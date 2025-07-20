@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnakeRoyale Demo - Offline Version</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #gameContainer {
+            position: relative;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .game-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+
+        .title {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+        }
+
+        .game-over h1 {
+            font-size: 4rem;
+            color: #ff0000;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .game-over .stats {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 15px;
+            margin: 2rem 0;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .game-over .stat-item {
+            margin: 0.5rem 0;
+            font-size: 1.2rem;
+        }
+
+        .game-over .buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .game-over .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .game-over .btn-primary {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            color: white;
+        }
+
+        .game-over .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .game-over .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div class="title">SnakeRoyale Demo</div>
+        <div class="game-info">
+            <div>Size: <span id="size">1.0x</span></div>
+            <div>Score: <span id="score">0</span></div>
+            <div>Time: <span id="time">0:00</span></div>
+        </div>
+        <div class="controls">
+            <div>Use Arrow Keys or Mouse to Move</div>
+            <div>Eat red food to grow</div>
+            <div>Stay inside the blue zone</div>
+        </div>
+        <canvas id="gameCanvas" width="1600" height="1200"></canvas>
+        
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="game-over hidden">
+            <h1>GAME OVER</h1>
+            <div class="stats">
+                <div class="stat-item">Final Score: <span id="finalScore">0</span></div>
+                <div class="stat-item">Size Reached: <span id="finalSize">1.0x</span></div>
+                <div class="stat-item">Time Survived: <span id="finalTime">0:00</span></div>
+                <div class="stat-item">Food Eaten: <span id="foodEaten">0</span></div>
+            </div>
+            <div class="buttons">
+                <button class="btn btn-primary" onclick="restartGame()">Play Again</button>
+                <button class="btn btn-secondary" onclick="showMainMenu()">Main Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple SnakeRoyale game without external dependencies
+        class SnakeRoyaleGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.player = { x: 800, y: 600, size: 15, speed: 5 };
+                this.tail = []; // Array to store tail segments
+                this.food = [];
+                this.zone = { x: 800, y: 600, radius: 800 };
+                this.camera = { x: 0, y: 0 };
+                this.worldSize = { width: 3200, height: 2400 };
+                this.keys = {};
+                this.mouse = { x: 0, y: 0, isDown: false };
+                this.score = 0;
+                this.foodEaten = 0;
+                this.startTime = Date.now();
+                this.gameRunning = true;
+
+                this.setupEventListeners();
+                this.createFood();
+                this.gameLoop();
+            }
+
+            setupEventListeners() {
+                // Keyboard controls
+                document.addEventListener('keydown', (e) => {
+                    this.keys[e.key] = true;
+                });
+
+                document.addEventListener('keyup', (e) => {
+                    this.keys[e.key] = false;
+                });
+
+                // Mouse controls
+                this.canvas.addEventListener('mousemove', (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.mouse.x = e.clientX - rect.left;
+                    this.mouse.y = e.clientY - rect.top;
+                });
+
+                this.canvas.addEventListener('mousedown', () => {
+                    this.mouse.isDown = true;
+                });
+
+                this.canvas.addEventListener('mouseup', () => {
+                    this.mouse.isDown = false;
+                });
+            }
+
+            createFood() {
+                for (let i = 0; i < 100; i++) {
+                    this.food.push({
+                        x: Math.random() * this.worldSize.width,
+                        y: Math.random() * this.worldSize.height,
+                        size: 6,
+                        value: 0.2 // Fixed value for consistent growth
+                    });
+                }
+            }
+
+            updatePlayer() {
+                let dx = 0;
+                let dy = 0;
+
+                // Keyboard movement
+                if (this.keys['ArrowLeft'] || this.keys['a']) dx -= this.player.speed;
+                if (this.keys['ArrowRight'] || this.keys['d']) dx += this.player.speed;
+                if (this.keys['ArrowUp'] || this.keys['w']) dy -= this.player.speed;
+                if (this.keys['ArrowDown'] || this.keys['s']) dy += this.player.speed;
+
+                // Mouse movement
+                if (this.mouse.isDown) {
+                    const angle = Math.atan2(this.mouse.y - this.player.y, this.mouse.x - this.player.x);
+                    dx = Math.cos(angle) * this.player.speed;
+                    dy = Math.sin(angle) * this.player.speed;
+                }
+
+                // Update tail positions
+                for (let i = this.tail.length - 1; i > 0; i--) {
+                    this.tail[i].x = this.tail[i - 1].x;
+                    this.tail[i].y = this.tail[i - 1].y;
+                }
+                if (this.tail.length > 0) {
+                    this.tail[0].x = this.player.x;
+                    this.tail[0].y = this.player.y;
+                }
+
+                // Update player position
+                this.player.x += dx;
+                this.player.y += dy;
+
+                // Keep player in world bounds
+                this.player.x = Math.max(this.player.size, Math.min(this.worldSize.width - this.player.size, this.player.x));
+                this.player.y = Math.max(this.player.size, Math.min(this.worldSize.height - this.player.size, this.player.y));
+
+                // Update camera to follow player
+                this.camera.x = this.player.x - 800;
+                this.camera.y = this.player.y - 600;
+
+                // Keep camera in world bounds
+                this.camera.x = Math.max(0, Math.min(this.worldSize.width - 1600, this.camera.x));
+                this.camera.y = Math.max(0, Math.min(this.worldSize.height - 1200, this.camera.y));
+            }
+
+            checkCollisions() {
+                // Check food collisions
+                for (let i = this.food.length - 1; i >= 0; i--) {
+                    const food = this.food[i];
+                    const distance = Math.sqrt(
+                        Math.pow(this.player.x - food.x, 2) + 
+                        Math.pow(this.player.y - food.y, 2)
+                    );
+
+                    if (distance < this.player.size + food.size) {
+                        // Eat food
+                        this.player.size += food.value;
+                        this.score += Math.floor(food.value * 100);
+                        this.foodEaten++;
+                        
+                        // Add tail segment
+                        this.tail.push({
+                            x: this.player.x,
+                            y: this.player.y,
+                            size: this.player.size * 0.8
+                        });
+                        
+                        this.food.splice(i, 1);
+
+                        // Create new food
+                        this.food.push({
+                            x: Math.random() * this.worldSize.width,
+                            y: Math.random() * this.worldSize.height,
+                            size: 6,
+                            value: 0.2 // Fixed value for consistent growth
+                        });
+                    }
+                }
+            }
+
+            checkZoneDamage() {
+                const distance = Math.sqrt(
+                    Math.pow(this.player.x - this.zone.x, 2) + 
+                    Math.pow(this.player.y - this.zone.y, 2)
+                );
+
+                if (distance > this.zone.radius) {
+                    this.player.size -= 0.1;
+                    if (this.player.size <= 5) {
+                        this.gameOver();
+                    }
+                }
+            }
+
+            shrinkZone() {
+                if (this.zone.radius > 200) {
+                    this.zone.radius -= 0.5;
+                }
+            }
+
+            gameOver() {
+                this.gameRunning = false;
+                
+                // Update game over screen stats
+                document.getElementById('finalScore').textContent = this.score;
+                document.getElementById('finalSize').textContent = (this.player.size / 15).toFixed(1) + 'x';
+                
+                const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('finalTime').textContent = 
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                document.getElementById('foodEaten').textContent = this.foodEaten;
+                
+                // Show game over screen
+                document.getElementById('gameOverScreen').classList.remove('hidden');
+            }
+
+            updateStats() {
+                const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+
+                document.getElementById('size').textContent = (this.player.size / 15).toFixed(1) + 'x';
+                document.getElementById('score').textContent = this.score;
+                document.getElementById('time').textContent = 
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+
+            draw() {
+                // Clear canvas
+                this.ctx.fillStyle = '#2c3e50';
+                this.ctx.fillRect(0, 0, 1600, 1200);
+
+                // Save context for camera transform
+                this.ctx.save();
+                this.ctx.translate(-this.camera.x, -this.camera.y);
+
+                // Draw world background
+                this.ctx.fillStyle = '#1a252f';
+                this.ctx.fillRect(0, 0, this.worldSize.width, this.worldSize.height);
+
+                // Draw zone
+                this.ctx.fillStyle = 'rgba(0, 0, 255, 0.1)';
+                this.ctx.beginPath();
+                this.ctx.arc(this.zone.x, this.zone.y, this.zone.radius, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                this.ctx.strokeStyle = '#0000ff';
+                this.ctx.lineWidth = 4;
+                this.ctx.stroke();
+
+                // Draw food
+                this.ctx.fillStyle = '#ff0000';
+                this.food.forEach(food => {
+                    this.ctx.beginPath();
+                    this.ctx.arc(food.x, food.y, food.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+
+                // Draw tail segments
+                this.ctx.fillStyle = '#00cc00';
+                for (let i = 0; i < this.tail.length; i++) {
+                    const segment = this.tail[i];
+                    const alpha = 0.3 + (i / this.tail.length) * 0.7; // Fade from transparent to solid
+                    this.ctx.globalAlpha = alpha;
+                    this.ctx.beginPath();
+                    this.ctx.arc(segment.x, segment.y, segment.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
+                this.ctx.globalAlpha = 1;
+
+                // Draw player
+                this.ctx.fillStyle = '#00ff00';
+                this.ctx.beginPath();
+                this.ctx.arc(this.player.x, this.player.y, this.player.size, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                // Restore context
+                this.ctx.restore();
+            }
+
+            gameLoop() {
+                if (!this.gameRunning) return;
+
+                this.updatePlayer();
+                this.checkCollisions();
+                this.checkZoneDamage();
+                this.shrinkZone();
+                this.updateStats();
+                this.draw();
+
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+
+        // Global game instance
+        let gameInstance = null;
+
+        // Start the game when page loads
+        window.addEventListener('load', () => {
+            gameInstance = new SnakeRoyaleGame();
+        });
+
+        // Restart game function
+        function restartGame() {
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            gameInstance = new SnakeRoyaleGame();
+        }
+
+        // Show main menu function
+        function showMainMenu() {
+            window.location.href = '/landing.html';
+        }
+    </script>
+</body>
+</html> 

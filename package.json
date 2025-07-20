@@ -1,0 +1,32 @@
+{
+  "name": "snake-royale",
+  "version": "1.0.0",
+  "description": "A Slither.io-inspired real-money battle royale game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start-simple": "node server.mjs",
+    "dev": "nodemon server.js",
+    "dev-simple": "nodemon server.mjs",
+    "build": "webpack --mode production",
+    "dev-build": "webpack --mode development --watch"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "webpack": "^5.88.2",
+    "webpack-cli": "^5.1.4",
+    "phaser": "^3.60.0",
+    "@babel/core": "^7.22.0",
+    "@babel/preset-env": "^7.22.0",
+    "babel-loader": "^9.1.0"
+  },
+  "keywords": ["game", "multiplayer", "battle-royale", "snake"],
+  "author": "SnakeRoyale Team",
+  "license": "MIT"
+} 

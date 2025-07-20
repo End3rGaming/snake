@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnakeRoyale Demo - Single Player</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #gameContainer {
+            position: relative;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .game-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+
+        .title {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+        }
+
+        .game-over h1 {
+            font-size: 4rem;
+            color: #ff0000;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .game-over .stats {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 15px;
+            margin: 2rem 0;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .game-over .stat-item {
+            margin: 0.5rem 0;
+            font-size: 1.2rem;
+        }
+
+        .game-over .buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .game-over .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .game-over .btn-primary {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            color: white;
+        }
+
+        .game-over .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .game-over .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.8);
+            padding: 2rem;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div class="title">SnakeRoyale Demo</div>
+        <div class="game-info">
+            <div>Size: <span id="size">1.0x</span></div>
+            <div>Score: <span id="score">0</span></div>
+            <div>Time: <span id="time">0:00</span></div>
+        </div>
+        <div class="controls">
+            <div>Use Arrow Keys or Mouse to Move</div>
+            <div>Eat red food to grow</div>
+            <div>Stay inside the blue zone</div>
+        </div>
+        <div id="loading" class="loading">Loading game...</div>
+        
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="game-over hidden">
+            <h1>GAME OVER</h1>
+            <div class="stats">
+                <div class="stat-item">Final Score: <span id="finalScore">0</span></div>
+                <div class="stat-item">Size Reached: <span id="finalSize">1.0x</span></div>
+                <div class="stat-item">Time Survived: <span id="finalTime">0:00</span></div>
+                <div class="stat-item">Food Eaten: <span id="foodEaten">0</span></div>
+            </div>
+            <div class="buttons">
+                <button class="btn btn-primary" onclick="restartGame()">Play Again</button>
+                <button class="btn btn-secondary" onclick="showMainMenu()">Main Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check if Phaser is loaded
+        function checkPhaser() {
+            if (typeof Phaser === 'undefined') {
+                document.getElementById('loading').innerHTML = 
+                    '<div class="error">Failed to load Phaser.js<br>Please check your internet connection</div>';
+                return false;
+            }
+            return true;
+        }
+
+        // Wait for Phaser to load
+        function waitForPhaser() {
+            if (checkPhaser()) {
+                document.getElementById('loading').style.display = 'none';
+                startGame();
+            } else {
+                setTimeout(waitForPhaser, 100);
+            }
+        }
+
+        // Start the game
+        function startGame() {
+            class DemoGameScene extends Phaser.Scene {
+                constructor() {
+                    super({ key: 'DemoGameScene' });
+                    this.player = null;
+                    this.food = new Map();
+                    this.zone = null;
+                    this.cursors = null;
+                    this.gameStats = {
+                        size: 1.0,
+                        score: 0,
+                        time: 0,
+                        foodEaten: 0
+                    };
+                    this.startTime = Date.now();
+                }
+
+                preload() {
+                    // Create simple graphics programmatically
+                    this.createGraphics();
+                }
+
+                createGraphics() {
+                    // Create player texture
+                    const playerGraphics = this.add.graphics();
+                    playerGraphics.fillStyle(0x00ff00);
+                    playerGraphics.fillCircle(8, 8, 8);
+                    playerGraphics.generateTexture('player', 16, 16);
+                    playerGraphics.destroy();
+
+                    // Create food texture
+                    const foodGraphics = this.add.graphics();
+                    foodGraphics.fillStyle(0xff0000);
+                    foodGraphics.fillCircle(6, 6, 6);
+                    foodGraphics.generateTexture('food', 12, 12);
+                    foodGraphics.destroy();
+                }
+
+                create() {
+                    // Create game world
+                    this.physics.world.setBounds(0, 0, 3200, 2400);
+                    this.add.rectangle(1600, 1200, 3200, 2400, 0x1a252f);
+                    
+                    // Create player
+                    this.player = this.add.circle(1600, 1200, 15, 0x00ff00);
+                    this.physics.add.existing(this.player);
+                    this.player.body.setCollideWorldBounds(true);
+                    this.player.speed = 200;
+                    this.player.size = 1.0;
+                    
+                    // Add player trail
+                    this.player.trail = this.add.graphics();
+                    this.player.trailPoints = [];
+                    
+                    // Create zone
+                    this.zone = this.add.circle(1600, 1200, 800, 0x0000ff, 0.1);
+                    this.zone.radius = 800;
+                    this.zone.shrinkRate = 0.5;
+                    
+                    // Zone border
+                    this.zoneBorder = this.add.circle(1600, 1200, 800, 0x0000ff, 0);
+                    this.zoneBorder.setStrokeStyle(4, 0x0000ff);
+                    
+                    // Create food
+                    this.foodGroup = this.physics.add.group();
+                    for (let i = 0; i < 100; i++) {
+                        this.createFoodItem();
+                    }
+                    
+                    // Setup controls
+                    this.cursors = this.input.keyboard.createCursorKeys();
+                    
+                    // Mouse controls
+                    this.input.on('pointermove', (pointer) => {
+                        if (this.player && this.player.active) {
+                            const angle = Phaser.Math.Angle.Between(
+                                this.player.x, this.player.y,
+                                pointer.x, pointer.y
+                            );
+                            this.player.rotation = angle;
+                        }
+                    });
+                    
+                    // Setup collisions
+                    this.physics.add.overlap(this.player, this.foodGroup, this.eatFood, null, this);
+                    
+                    // Start timers
+                    this.time.addEvent({
+                        delay: 1000,
+                        callback: this.shrinkZone,
+                        callbackScope: this,
+                        loop: true
+                    });
+                    
+                    this.time.addEvent({
+                        delay: 100,
+                        callback: this.updateStats,
+                        callbackScope: this,
+                        loop: true
+                    });
+                }
+
+                update() {
+                    if (!this.player || !this.player.active) return;
+                    
+                    this.handlePlayerMovement();
+                    this.updatePlayerTrail();
+                    this.checkZoneDamage();
+                    this.updateZoneBorder();
+                    this.updateCamera();
+                }
+
+                handlePlayerMovement() {
+                    const speed = this.player.speed;
+                    let velocityX = 0;
+                    let velocityY = 0;
+                    
+                    // Keyboard movement
+                    if (this.cursors.left.isDown) {
+                        velocityX = -speed;
+                    } else if (this.cursors.right.isDown) {
+                        velocityX = speed;
+                    }
+                    
+                    if (this.cursors.up.isDown) {
+                        velocityY = -speed;
+                    } else if (this.cursors.down.isDown) {
+                        velocityY = speed;
+                    }
+                    
+                    // Mouse movement
+                    const pointer = this.input.activePointer;
+                    if (pointer.isDown) {
+                        const angle = Phaser.Math.Angle.Between(
+                            this.player.x, this.player.y,
+                            pointer.x, pointer.y
+                        );
+                        
+                        velocityX = Math.cos(angle) * speed;
+                        velocityY = Math.sin(angle) * speed;
+                    }
+                    
+                    this.player.body.setVelocity(velocityX, velocityY);
+                }
+
+                updatePlayerTrail() {
+                    // Update tail positions
+                    if (this.player.tail && this.player.tail.length > 0) {
+                        for (let i = this.player.tail.length - 1; i > 0; i--) {
+                            this.player.tail[i].x = this.player.tail[i - 1].x;
+                            this.player.tail[i].y = this.player.tail[i - 1].y;
+                        }
+                        this.player.tail[0].x = this.player.x;
+                        this.player.tail[0].y = this.player.y;
+                    }
+                    
+                    // Update trail points for visual effect
+                    this.player.trailPoints.push({
+                        x: this.player.x,
+                        y: this.player.y,
+                        size: this.player.size
+                    });
+                    
+                    if (this.player.trailPoints.length > 15) {
+                        this.player.trailPoints.shift();
+                    }
+                    
+                    this.player.trail.clear();
+                    this.player.trail.lineStyle(2, 0x00ff00, 0.3);
+                    
+                    for (let i = 1; i < this.player.trailPoints.length; i++) {
+                        const point = this.player.trailPoints[i];
+                        const prevPoint = this.player.trailPoints[i - 1];
+                        
+                        this.player.trail.lineBetween(
+                            prevPoint.x, prevPoint.y,
+                            point.x, point.y
+                        );
+                    }
+                }
+
+                createFoodItem() {
+                    const x = Math.random() * 3200;
+                    const y = Math.random() * 2400;
+                    const value = 0.2; // Fixed value for consistent growth
+                    
+                    const foodItem = this.add.circle(x, y, 6, 0xff0000);
+                    this.physics.add.existing(foodItem);
+                    
+                    foodItem.value = value;
+                    foodItem.id = Phaser.Utils.String.UUID();
+                    
+                    this.foodGroup.add(foodItem);
+                    this.food.set(foodItem.id, foodItem);
+                }
+
+                eatFood(player, foodItem) {
+                    foodItem.destroy();
+                    this.food.delete(foodItem.id);
+                    
+                    // Grow player
+                    this.player.size += foodItem.value;
+                    this.player.setScale(this.player.size);
+                    
+                    // Add tail segment
+                    const tailSegment = this.add.circle(this.player.x, this.player.y, this.player.size * 0.8, 0x00cc00);
+                    this.player.tail = this.player.tail || [];
+                    this.player.tail.push(tailSegment);
+                    
+                    // Update stats
+                    this.gameStats.size = this.player.size;
+                    this.gameStats.score += Math.floor(foodItem.value * 100);
+                    this.gameStats.foodEaten++;
+                    
+                    // Create score popup
+                    this.createScorePopup(foodItem.x, foodItem.y, foodItem.value);
+                    
+                    // Respawn food
+                    this.time.delayedCall(1000, () => {
+                        this.createFoodItem();
+                    });
+                }
+
+                createScorePopup(x, y, value) {
+                    const text = this.add.text(x, y, `+${Math.floor(value * 100)}`, {
+                        fontSize: '16px',
+                        fill: '#4ecdc4',
+                        stroke: '#000',
+                        strokeThickness: 2
+                    });
+                    
+                    this.tweens.add({
+                        targets: text,
+                        y: y - 50,
+                        alpha: 0,
+                        duration: 1000,
+                        ease: 'Power2',
+                        onComplete: () => {
+                            text.destroy();
+                        }
+                    });
+                }
+
+                shrinkZone() {
+                    if (this.zone.radius > 200) {
+                        this.zone.radius -= this.zone.shrinkRate;
+                        this.zoneBorder.setRadius(this.zone.radius);
+                    }
+                }
+
+                checkZoneDamage() {
+                    const distance = Phaser.Math.Distance.Between(
+                        this.player.x, this.player.y,
+                        this.zone.x, this.zone.y
+                    );
+                    
+                    if (distance > this.zone.radius) {
+                        this.player.size -= 0.05;
+                        this.player.setScale(this.player.size);
+                        
+                        this.player.setTint(0xff0000);
+                        this.time.delayedCall(100, () => {
+                            this.player.clearTint();
+                        });
+                        
+                        if (this.player.size <= 0.5) {
+                            this.gameOver();
+                        }
+                    }
+                }
+
+                updateZoneBorder() {
+                    this.zoneBorder.setPosition(this.zone.x, this.zone.y);
+                    this.zoneBorder.setRadius(this.zone.radius);
+                }
+
+                updateCamera() {
+                    // Camera follows player
+                    this.cameras.main.setScroll(this.player.x - 800, this.player.y - 600);
+                }
+
+                updateStats() {
+                    this.gameStats.time = Math.floor((Date.now() - this.startTime) / 1000);
+                    
+                    document.getElementById('size').textContent = this.gameStats.size.toFixed(1) + 'x';
+                    document.getElementById('score').textContent = this.gameStats.score;
+                    
+                    const minutes = Math.floor(this.gameStats.time / 60);
+                    const seconds = this.gameStats.time % 60;
+                    document.getElementById('time').textContent = 
+                        `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }
+
+                gameOver() {
+                    this.player.destroy();
+                    this.player = null;
+                    
+                    // Update game over screen stats
+                    document.getElementById('finalScore').textContent = this.gameStats.score;
+                    document.getElementById('finalSize').textContent = this.gameStats.size.toFixed(1) + 'x';
+                    
+                    const minutes = Math.floor(this.gameStats.time / 60);
+                    const seconds = this.gameStats.time % 60;
+                    document.getElementById('finalTime').textContent = 
+                        `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    
+                    document.getElementById('foodEaten').textContent = this.gameStats.foodEaten;
+                    
+                    // Show game over screen
+                    document.getElementById('gameOverScreen').classList.remove('hidden');
+                }
+            }
+
+            // Initialize the game
+            const config = {
+                type: Phaser.AUTO,
+                width: 1600,
+                height: 1200,
+                parent: 'gameContainer',
+                backgroundColor: '#2c3e50',
+                physics: {
+                    default: 'arcade',
+                    arcade: {
+                        gravity: { y: 0 },
+                        debug: false
+                    }
+                },
+                scene: DemoGameScene
+            };
+
+            try {
+                gameInstance = new Phaser.Game(config);
+            } catch (error) {
+                document.getElementById('loading').innerHTML = 
+                    '<div class="error">Failed to start game<br>Error: ' + error.message + '</div>';
+            }
+        }
+
+        // Global game instance
+        let gameInstance = null;
+
+        // Start checking for Phaser
+        function waitForPhaser() {
+            if (checkPhaser()) {
+                document.getElementById('loading').style.display = 'none';
+                startGame();
+            } else {
+                setTimeout(waitForPhaser, 100);
+            }
+        }
+
+        // Restart game function
+        function restartGame() {
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            if (gameInstance) {
+                gameInstance.destroy();
+            }
+            startGame();
+        }
+
+        // Show main menu function
+        function showMainMenu() {
+            window.location.href = '/landing.html';
+        }
+
+        // Start checking for Phaser
+        waitForPhaser();
+    </script>
+</body>
+</html> 

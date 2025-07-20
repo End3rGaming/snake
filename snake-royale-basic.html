@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>SnakeRoyale - Basic Version</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            color: white;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        
+        #bettingUI {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 30px;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+            z-index: 2000;
+        }
+        
+        .betButton {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .betButton:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+        
+        #gameOverScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.95);
+            padding: 40px;
+            border-radius: 20px;
+            color: white;
+            text-align: center;
+            z-index: 3000;
+            display: none;
+        }
+        
+        .gameOverButton {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+            border: none;
+            color: white;
+            padding: 12px 25px;
+            margin: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .gameOverButton:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(33, 150, 243, 0.4);
+        }
+        
+        #zoneInfo {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <div>Score: <span id="score">0</span></div>
+            <div>Segments: <span id="size">30</span></div>
+            <div>Food Eaten: <span id="foodEaten">0</span></div>
+            <div>Time: <span id="time">00:00</span></div>
+        </div>
+        
+        <div id="zoneInfo">
+            <div>Zone Radius: <span id="zoneRadius">800</span></div>
+            <div>Players Alive: <span id="playersAlive">1</span></div>
+        </div>
+        
+        <div id="bettingUI">
+            <h2>🎮 SnakeRoyale 🐍</h2>
+            <p>Choose your betting tier to join the battle!</p>
+            <button class="betButton" onclick="startGame(1)">$1 Tier</button>
+            <button class="betButton" onclick="startGame(5)">$5 Tier</button>
+            <button class="betButton" onclick="startGame(10)">$10 Tier</button>
+            <button class="betButton" onclick="startGame(20)">$20 Tier</button>
+            <p style="margin-top: 20px; font-size: 14px; opacity: 0.8;">
+                Top 5 players win real money!<br>
+                Zone shrinks every 30 seconds
+            </p>
+        </div>
+        
+        <div id="gameOverScreen">
+            <h2>🏁 Game Over!</h2>
+            <div id="gameOverStats">
+                <p>Final Score: <span id="finalScore">0</span></p>
+                <p>Food Eaten: <span id="finalFood">0</span></p>
+                <p>Final Segments: <span id="finalSize">30</span></p>
+                <p>Time Survived: <span id="finalTime">00:00</span></p>
+            </div>
+            <button class="gameOverButton" onclick="restartGame()">Play Again</button>
+            <button class="gameOverButton" onclick="showMainMenu()">Main Menu</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <script>
+        // Game state
+        let gameInstance = null;
+        let currentBet = 0;
+        let gameStartTime = 0;
+        let gameStats = {
+            score: 0,
+            foodEaten: 0,
+            segments: 30
+        };
+
+        // Main game scene
+        class SnakeRoyaleScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'SnakeRoyaleScene' });
+            }
+
+            preload() {
+                console.log('Preload started');
+                // Create simple circle texture
+                let graphics = this.add.graphics();
+                graphics.fillStyle(0x00ff00);
+                graphics.fillCircle(16, 16, 16);
+                graphics.generateTexture('snake', 32, 32);
+                graphics.destroy();
+
+                // Create food texture
+                let foodGraphics = this.add.graphics();
+                foodGraphics.fillStyle(0xff0000);
+                foodGraphics.fillCircle(8, 8, 8);
+                foodGraphics.generateTexture('food', 16, 16);
+                foodGraphics.destroy();
+                console.log('Preload completed');
+            }
+
+            create() {
+                console.log('Create started');
+                
+                // Set background
+                this.cameras.main.setBackgroundColor('#2c3e50');
+                
+                // Create background rectangle
+                this.add.rectangle(0, 0, 3200, 2400, 0x1a252f);
+
+                // Create player
+                this.player = this.add.sprite(0, 0, 'snake');
+                this.player.setScale(0.8);
+
+                // Create snake segments
+                this.segments = [];
+                for (let i = 0; i < 30; i++) {
+                    let segment = this.add.sprite(0, 0, 'snake');
+                    segment.setScale(0.8);
+                    segment.setAlpha(0.7);
+                    this.segments.push(segment);
+                }
+
+                // Create food
+                this.food = [];
+                for (let i = 0; i < 50; i++) {
+                    let x = Phaser.Math.Between(-1500, 1500);
+                    let y = Phaser.Math.Between(-1100, 1100);
+                    let foodSprite = this.add.sprite(x, y, 'food');
+                    foodSprite.setScale(0.8);
+                    this.food.push(foodSprite);
+                }
+
+                // Create zone
+                this.zone = this.add.circle(0, 0, 800, 0x0000ff, 0.1);
+                this.zoneBorder = this.add.circle(0, 0, 800, 0x0000ff, 0);
+                this.zoneBorder.setStrokeStyle(4, 0x0000ff);
+
+                // Set up camera
+                this.cameras.main.startFollow(this.player);
+                this.cameras.main.setZoom(1);
+
+                // Set up controls
+                this.cursors = this.input.keyboard.createCursorKeys();
+                this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+                // Game variables
+                this.playerSpeed = 200;
+                this.rotationSpeed = 3;
+                this.path = [];
+                this.segmentDistance = 20;
+
+                // Start zone shrinking
+                this.time.addEvent({
+                    delay: 1000,
+                    callback: this.shrinkZone,
+                    callbackScope: this,
+                    loop: true
+                });
+
+                console.log('Create completed');
+            }
+
+            update() {
+                this.handlePlayerMovement();
+                this.updateSnakeSegments();
+                this.updateZone();
+                this.checkFoodCollision();
+                this.updateUI();
+            }
+
+            handlePlayerMovement() {
+                let speed = this.playerSpeed;
+                if (this.spaceKey.isDown) {
+                    speed = 300;
+                }
+
+                // Mouse movement
+                let pointer = this.input.activePointer;
+                if (pointer.isDown) {
+                    let angle = Phaser.Math.Angle.Between(
+                        this.player.x, this.player.y,
+                        pointer.worldX, pointer.worldY
+                    );
+                    this.player.setRotation(angle);
+                }
+
+                // Keyboard movement
+                if (this.cursors.left.isDown) {
+                    this.player.setAngularVelocity(-this.rotationSpeed * 100);
+                } else if (this.cursors.right.isDown) {
+                    this.player.setAngularVelocity(this.rotationSpeed * 100);
+                } else {
+                    this.player.setAngularVelocity(0);
+                }
+
+                // Move player
+                let velocity = this.physics.velocityFromRotation(this.player.rotation, speed);
+                this.player.x += velocity.x * this.game.loop.delta / 1000;
+                this.player.y += velocity.y * this.game.loop.delta / 1000;
+            }
+
+            updateSnakeSegments() {
+                // Add current position to path
+                this.path.unshift({ x: this.player.x, y: this.player.y });
+
+                // Keep path length manageable
+                if (this.path.length > 1000) {
+                    this.path.pop();
+                }
+
+                // Update segment positions
+                for (let i = 0; i < this.segments.length; i++) {
+                    let targetIndex = (i + 1) * this.segmentDistance;
+                    if (targetIndex < this.path.length) {
+                        let target = this.path[targetIndex];
+                        this.segments[i].x = target.x;
+                        this.segments[i].y = target.y;
+                    }
+                }
+            }
+
+            checkFoodCollision() {
+                for (let i = this.food.length - 1; i >= 0; i--) {
+                    let food = this.food[i];
+                    let distance = Phaser.Math.Distance.Between(
+                        this.player.x, this.player.y,
+                        food.x, food.y
+                    );
+                    
+                    if (distance < 20) {
+                        // Eat food
+                        food.destroy();
+                        this.food.splice(i, 1);
+                        
+                        // Add new segment
+                        let newSegment = this.add.sprite(0, 0, 'snake');
+                        newSegment.setScale(0.8);
+                        newSegment.setAlpha(0.7);
+                        this.segments.push(newSegment);
+                        
+                        // Update stats
+                        gameStats.foodEaten++;
+                        gameStats.score += 10;
+                        
+                        // Visual feedback
+                        this.tweens.add({
+                            targets: this.player,
+                            scaleX: 1.2,
+                            scaleY: 1.2,
+                            duration: 200,
+                            yoyo: true
+                        });
+                        
+                        // Create new food
+                        let x = Phaser.Math.Between(-1500, 1500);
+                        let y = Phaser.Math.Between(-1100, 1100);
+                        let newFood = this.add.sprite(x, y, 'food');
+                        newFood.setScale(0.8);
+                        this.food.push(newFood);
+                    }
+                }
+            }
+
+            shrinkZone() {
+                if (this.zone.radius > 200) {
+                    this.zone.radius -= 0.5;
+                    this.zoneBorder.setRadius(this.zone.radius);
+                    document.getElementById('zoneRadius').textContent = Math.round(this.zone.radius);
+                }
+            }
+
+            updateZone() {
+                this.zoneBorder.setPosition(this.zone.x, this.zone.y);
+                
+                // Check if player is outside zone
+                let distance = Phaser.Math.Distance.Between(
+                    this.player.x, this.player.y,
+                    this.zone.x, this.zone.y
+                );
+                
+                if (distance > this.zone.radius) {
+                    this.gameOver();
+                }
+            }
+
+            updateUI() {
+                document.getElementById('score').textContent = gameStats.score;
+                document.getElementById('size').textContent = gameStats.foodEaten + 30;
+                document.getElementById('foodEaten').textContent = gameStats.foodEaten;
+                
+                let elapsed = Math.floor((Date.now() - gameStartTime) / 1000);
+                let minutes = Math.floor(elapsed / 60);
+                let seconds = elapsed % 60;
+                document.getElementById('time').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+
+            gameOver() {
+                document.getElementById('gameOverScreen').style.display = 'block';
+                document.getElementById('finalScore').textContent = gameStats.score;
+                document.getElementById('finalFood').textContent = gameStats.foodEaten;
+                document.getElementById('finalSize').textContent = gameStats.foodEaten + 30;
+                
+                let elapsed = Math.floor((Date.now() - gameStartTime) / 1000);
+                let minutes = Math.floor(elapsed / 60);
+                let seconds = elapsed % 60;
+                document.getElementById('finalTime').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        // Game functions
+        function startGame(betAmount) {
+            console.log('Starting game with bet:', betAmount);
+            currentBet = betAmount;
+            document.getElementById('bettingUI').style.display = 'none';
+            
+            if (gameInstance) {
+                console.log('Destroying existing game instance');
+                gameInstance.destroy(true);
+            }
+
+            const config = {
+                type: Phaser.AUTO,
+                width: 1600,
+                height: 1200,
+                parent: 'gameContainer',
+                backgroundColor: '#2c3e50',
+                scene: SnakeRoyaleScene
+            };
+
+            console.log('Creating new game instance');
+            gameInstance = new Phaser.Game(config);
+            gameStats = { score: 0, foodEaten: 0, segments: 30 };
+            gameStartTime = Date.now();
+            console.log('Game started successfully');
+        }
+
+        function restartGame() {
+            document.getElementById('gameOverScreen').style.display = 'none';
+            startGame(currentBet);
+        }
+
+        function showMainMenu() {
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('bettingUI').style.display = 'block';
+            if (gameInstance) {
+                gameInstance.destroy(true);
+                gameInstance = null;
+            }
+        }
+
+        // Update UI every second
+        setInterval(() => {
+            if (gameStats) {
+                document.getElementById('score').textContent = gameStats.score;
+                document.getElementById('size').textContent = gameStats.foodEaten + 30;
+                document.getElementById('foodEaten').textContent = gameStats.foodEaten;
+            }
+        }, 1000);
+
+        // Add error handling
+        window.addEventListener('error', function(e) {
+            console.error('Game error:', e.error);
+            alert('Game error: ' + e.error.message);
+        });
+    </script>
+</body>
+</html> 
